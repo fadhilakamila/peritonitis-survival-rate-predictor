@@ -3,15 +3,76 @@ TA | Peritonitis Prediction Calculator
 """
 import streamlit as st
 import pandas as pd
+import hmac
+import datetime
+import os
+
+# === PASSWORD ===
+def check_password():
+    def password_entered():
+        if st.session_state["username"] in st.secrets["password"] and hmac.compare_digest(
+            st.session_state["password"], st.secrets["password"][st.session_state["username"]]
+        ):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+            del st.session_state["username"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if st.session_state.get("password_correct", False):
+        return True
+
+    st.title("Login Sistem Prediksi Pediatri")
+    with st.form("Credentials"):
+        st.text_input("Username", key="username")
+        st.text_input("Password", type="password", key="password")
+        st.form_submit_button("Login", on_click=password_entered)
+
+    if "password_correct" in st.session_state:
+        st.error("😕 Username atau password salah.")
+    return False
 
 # Konfigurasi Halaman
 st.set_page_config(
-    page_title="Peritonitis Prediction Calculator",
+    page_title="Pediatric Prediction System",
     page_icon="🔬",
     layout="wide"
 )
 
-# === KNOWLEDGE BASE (sesuai decision table) ===
+if not check_password():
+    st.stop()
+
+# === simpan log ke excel ===
+def save_prediction_log(data_row, module_name):
+    log_file = "prediction_logs.xlsx"
+    data_row['Module'] = module_name
+    data_row['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    new_df = pd.DataFrame([data_row])
+    
+    if os.path.exists(log_file):
+        existing_df = pd.read_excel(log_file)
+        updated_df = pd.concat([existing_df, new_df], ignore_index=True)
+    else:
+        updated_df = new_df
+        
+    updated_df.to_excel(log_file, index=False)
+
+# === data loading ===
+@st.cache_data
+def load_crrt_database():
+    file_path = 'PredictCRRTforKids_Database.xlsx'
+    try:
+        return pd.read_excel(file_path)
+    except:
+        return pd.DataFrame()
+    
+# === nav side bar ===
+st.sidebar.title("Navigasi")
+selection = st.sidebar.radio("Pilih Modul Prediksi:", ["Peritonitis Prediction", "CRRT Prediction"])
+
+# === PERITONITIS PREDICTION ===
+# --- KNOWLEDGE BASE (sesuai decision table) ---
 # x=1 jika mendukung Non-Survivor (Peritonitis), x=0 jika mendukung Survivor.
 variables_data = [
     {"label": "Age", "non-peritonitis": ">2 yo", "peritonitis": "<2 yo", "p_val": 0.002, "rr": 1.4, "mrf": False},
@@ -49,7 +110,7 @@ mrf_explanations = {
 }
 
 def main():
-    st.title("Sistem Prediksi Survival Rate Pasien Peritoneal Dialysis")
+    st.title("Sistem Prediksi Survival Rate Pasien Pediatri Peritoneal Dialysis")
     st.markdown("---")
 
     with st.sidebar:
