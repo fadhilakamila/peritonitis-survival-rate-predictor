@@ -4,7 +4,7 @@ TA | Peritonitis Prediction Calculator
 import streamlit as st
 import pandas as pd
 import hmac
-import datetime
+from datetime import datetime
 import os
 
 # === PASSWORD ===
@@ -22,14 +22,19 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
-    st.title("Login Sistem Prediksi Pediatri")
-    with st.form("Credentials"):
-        st.text_input("Username", key="username")
-        st.text_input("Password", type="password", key="password")
-        st.form_submit_button("Login", on_click=password_entered)
+    st.markdown("<h1 style='text-align: center;'>Sistem Prediksi Pediatri</h1>", unsafe_allow_html=True)
+    left_co, cent_co, last_co = st.columns([1, 2, 1])
+    
+    with cent_co:
+        st.subheader("Login")
+        with st.form("Credentials"):
+            st.text_input("Username", key="username")
+            st.text_input("Password", type="password", key="password")
+            st.form_submit_button("Login", on_click=password_entered, use_container_width=True)
 
-    if "password_correct" in st.session_state:
-        st.error("Username atau password salah.")
+        if "password_correct" in st.session_state:
+            st.error("😕 Username atau password salah.")
+            
     return False
 
 # Konfigurasi Halaman
@@ -68,7 +73,7 @@ def load_crrt_database():
         return pd.DataFrame()
     
 # === nav side bar ===
-selection = st.sidebar.radio("Pilih Modul Prediksi:", ["Peritonitis Prediction", "CRRT Prediction"])
+selection = st.sidebar.radio("Pilih Modul Prediksi", ["Peritonitis Prediction", "CRRT Prediction"])
 
 # === PERITONITIS PREDICTION ===
 if selection == "Peritonitis Prediction":
@@ -110,17 +115,15 @@ if selection == "Peritonitis Prediction":
     }
 
     def main():
-        st.title("Sistem Prediksi Survival Rate Pasien Pediatri Peritoneal Dialysis")
-        st.markdown("---")
+        st.title("Prediksi Survival Rate Pasien Pediatri Peritoneal Dialysis")
 
         with st.sidebar:
-            st.header("Informasi Pengembang")
             st.write("Developed by: **Fadhila Kamila Ismail** [LinkedIn](https://www.linkedin.com/in/fadhila-kamila-ismail/)")
             st.write("Supervised by: **Retno Aulia Vinarti, M.Kom., Ph.D.** [Email](ra_vinarti@its.ac.id)")
             st.write("Expert: **dr. Reza Fahlevi, Sp.A(K)**")
             st.info("Sistem ini menggunakan meta-analisis sebagai knowledge-base klinis.")
 
-        st.subheader("Kondisi Klinis Pasien")
+        st.subheader("Masukkan Kondisi Klinis Pasien")
         patient_name = st.text_input("Nama Pasien", placeholder="Masukkan nama...")
         
         col1, col2 = st.columns(2)
@@ -134,7 +137,7 @@ if selection == "Peritonitis Prediction":
             choice = target_col.selectbox(label, options, index=0)
             user_selections[var['label']] = choice
 
-        if st.button("Hitung Prediksi Survival Rate"):
+        if st.button("Hitung Survival Rate"):
             if not patient_name:
                 st.warning("Silakan masukkan nama pasien terlebih dahulu.")
                 return
@@ -178,14 +181,16 @@ if selection == "Peritonitis Prediction":
             
             if survival_rate >= 50:
                 st.success(f"**SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
-                st.caption(f"Pasien dikategorikan sebagai **SURVIVOR** karena Survival Rate ≥ 50% (Cut-off dr. Reza Fahlevi, Sp.A(K))")
+                st.caption(f"Pasien dikategorikan sebagai **SURVIVOR** karena Survival Rate ≥ 50%")
             else:
-                st.error(f"**NON-SURVIVOR** dengan Survival Rate{survival_rate:.2f}%**")
+                st.error(f"**NON-SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
                 st.caption(f"Pasien dikategorikan sebagai **NON-SURVIVOR** karena Survival Rate < 50% (Cut-off dr. Reza Fahlevi, Sp.A(K))")
 
             # === XAI ===
             expl_col1, expl_col2 = st.columns(2)
             
+            st.space()
+
             with expl_col1:
                 st.write("**Mendukung Survival (RR < 1)**")
                 for item in xai_supporting_non_peritonitis:
@@ -196,7 +201,8 @@ if selection == "Peritonitis Prediction":
                 for item in xai_supporting_peritonitis:
                     st.write(f"- {item}")
 
-            # Penjelasan MRF 
+            st.space()
+
             if modifiable_risk_factors:
                 st.write("**Modifiable Risk Factor**")
                 st.caption("Variabel berikut dapat diperbaiki secara medis untuk meningkatkan peluang keberhasilan terapi")
@@ -211,14 +217,19 @@ if selection == "Peritonitis Prediction":
         main()
 
 elif selection == "CRRT Prediction":
-    st.title("Pediatric CRRT Calculator for Survival Prediction")
+    st.title("Survival Prediction Calculator for Pediatric CRRT")
+
+    with st.sidebar:
+        st.write("Developed by: **Zulfan Zidni Ilhama** [LinkedIn](https://www.linkedin.com/in/zulfanzidni/)")
+        st.write("Supervised by: **Retno Aulia Vinarti, M.Kom., Ph.D.** [Email](ra_vinarti@its.ac.id)")
+        st.write("Expert: **dr. Reza Fahlevi, Sp.A(K)**")
+    
     df_crrt = load_crrt_database()
 
     patient_name = st.text_input("Patient Name")
     patient_id = st.text_input("Patient ID")
     date = datetime.now().strftime("%d-%m-%Y")
 
-    # Define variables and their upper limits with labels
     variables = {
         "sex": {"label": "Sex", "default": "Male", "tag": "Sex"},
         "age": {"label": "Age (years)", "default": 5.7, "tag": "Age (Significant)"},
@@ -250,7 +261,6 @@ elif selection == "CRRT Prediction":
         "hyperammonemia": {"label": "Hyperammonemia", "default": "Yes", "tag": "Hyperammonemia"}
     }
 
-    # Define correct categorical options
     categorical_options = {
         "sex": ["Male", "Female"],
         "ventilator": ["Yes", "No"],
