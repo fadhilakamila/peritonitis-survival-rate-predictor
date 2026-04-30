@@ -178,78 +178,88 @@ if selection == "Peritonitis Prediction":
             survival_rate = (1 - kejadian_peritonitis) * 100
 
             st.divider()
-            st.subheader(f"📊 Laporan Hasil Analisis: {patient_name}")
+            
+            st.subheader(f"Hasil Prediksi {patient_name}")
 
-            # 1. Menampilkan Survival Rate dengan Metric Card (Shadcn)
-            # Kita tentukan warna berdasarkan hasil
-            result_status = "SURVIVOR" if survival_rate >= 50 else "NON-SURVIVOR"
-            result_color = "default" if survival_rate >= 50 else "destructive"
+            # 1. Tentukan warna teks (Hex Code)
+            if survival_rate >= 50:
+                result_status = "SURVIVOR"
+                color_code = "#22c55e" # Hijau
+                status_icon = "🟢"
+            else:
+                result_status = "NON-SURVIVOR"
+                color_code = "#f97316" # Oranye
+                status_icon = "🟠"
 
             cols = st.columns([1, 1])
+
             with cols[0]:
+                # Kita gunakan HTML untuk memaksa perubahan warna
+                # 'unsafe_allow_html' biasanya tidak tersedia langsung di parameter content, 
+                # jadi kita pakai trik f-string yang lebih berani.
+                colored_content = f"{survival_rate:.2f}%"
+                
                 ui.metric_card(
                     title="Survival Rate", 
-                    content=f"{survival_rate:.2f}%", 
-                    description=f"Status: {result_status}", 
+                    content=colored_content,
+                    description=f"{status_icon} Status: {result_status}", 
                     key="sr_metric"
                 )
 
-            with cols[1]:
-                # Alert Shadcn untuk memberikan kesimpulan cepat
-                if survival_rate >= 50:
-                    ui.alert(
-                        title="Prediksi Positif", 
-                        content=f"Pasien dikategorikan sebagai SURVIVOR berdasarkan cut-off 50%.", 
-                        variant="default", 
-                        icon="check_circle"
-                    )
-                else:
-                    ui.alert(
-                        title="Perhatian Medis", 
-                        content=f"Pasien dikategorikan sebagai NON-SURVIVOR. Diperlukan pengawasan ketat.", 
-                        variant="destructive", 
-                        icon="warning"
-                    )
+            # 2. Tambahkan indikator warna di bawahnya agar dokter lebih jelas (Alternatif Paling Aman)
+            st.markdown(f"### Persentase Keberhasilan: <span style='color:{color_code}; font-weight:bold;'>{survival_rate:.2f}%</span>", unsafe_allow_html=True)
 
-            # 2. XAI dengan Card dan Badges (Shadcn)
-            st.markdown("### 🔍 Penjelasan Faktor (XAI)")
+            st.caption(f"Hasil berdasarkan cut-off 50% sesuai diskusi dengan dr. Reza Fahlevi, Sp.A(K).")
+
+            # 2. XAI dengan Card
             expl_col1, expl_col2 = st.columns(2)
 
             with expl_col1:
-                with ui.card(title="Faktor Pendukung Survival", description="Variabel dengan Risk Ratio (RR) < 1"):
+                # Card untuk Faktor Pendukung Survival
+                with ui.card(key="card_survival"):
+                    ui.element("span", children=["Faktor Pendukung Survival"], className="text-black text-sm font-bold m-1", key="label_surv")
+                    ui.element("p", children=["Variabel dengan Risk Ratio (RR) < 1"], className="text-gray-400 text-xs m-1", key="desc_surv")
+                    
                     if xai_supporting_non_peritonitis:
-                        # Menampilkan list menggunakan badges agar terlihat modern
-                        badges = [(item, "outline") for item in xai_supporting_non_peritonitis]
-                        ui.badges(badge_list=badges, class_name="flex flex-wrap gap-2")
+                        for idx, item in enumerate(xai_supporting_non_peritonitis):
+                            ui.element("p", children=[f"• {item}"], className="text-sm text-gray-700 m-1", key=f"list_surv{idx}")
                     else:
-                        st.write("Tidak ada faktor spesifik terdeteksi.")
+                        ui.element("p", children=["Tidak ada faktor spesifik."], className="text-sm text-gray-400 m-1", key="none_surv")
 
             with expl_col2:
-                with ui.card(title="Faktor Risiko Peritonitis", description="Variabel dengan Risk Ratio (RR) > 1"):
+                # Card untuk Faktor Risiko Peritonitis
+                with ui.card(key="card_risk"):
+                    ui.element("span", children=["Faktor Risiko Peritonitis"], className="text-black text-sm font-bold m-1", key="label_risk")
+                    ui.element("p", children=["Variabel dengan Risk Ratio (RR) > 1"], className="text-gray-400 text-xs m-1", key="desc_risk")
+                    
                     if xai_supporting_peritonitis:
-                        badges = [(item, "destructive") for item in xai_supporting_peritonitis]
-                        ui.badges(badge_list=badges, class_name="flex flex-wrap gap-2")
+                        for idx, item in enumerate(xai_supporting_peritonitis):
+                            ui.element("p", children=[f"• {item}"], className="text-sm text-gray-700 m-1", key=f"list_risk{idx}")
                     else:
-                        st.write("Risiko terpantau rendah.")
+                        ui.element("p", children=["Risiko terpantau rendah."], className="text-sm text-gray-400 m-1", key="none_risk")
 
-            # 3. Modifiable Risk Factor (MRF) dengan Accordion/Card
+            #3. Modifiable Risk Factor (MRF) dengan Accordion (Lebih Rapi & Sesuai Dokumentasi)
             if modifiable_risk_factors:
-                st.markdown("### 🛠️ Rekomendasi Intervensi (MRF)")
-                ui.alert(
-                    title="Faktor Risiko yang Dapat Dimodifikasi",
-                    content="Berikut adalah langkah medis yang dapat diambil untuk meningkatkan peluang survival.",
-                    variant="outline"
-                )
+                st.markdown("### Modifiable Risk Factors (MRF)")
                 
-                # Loop untuk menampilkan setiap MRF dalam Card kecil yang rapi
+                st.write("Berikut adalah rekomendasi intervensi yang dapat diambil untuk meningkatkan peluang survival")
+                
+                # Menyiapkan data untuk Accordion sesuai format dokumentasi
+                accordion_data = []
                 for mrf in modifiable_risk_factors:
-                    penjelasan = mrf_explanations.get(mrf, "Perlu konsultasi lebih lanjut.")
-                    with ui.card(title=f"Rekomendasi: {mrf}"):
-                        st.write(penjelasan)
-
+                    penjelasan = mrf_explanations.get(mrf, "Perlu konsultasi lebih lanjut dengan dokter spesialis.")
+                    accordion_data.append({
+                        "trigger": f"{mrf}", 
+                        "content": penjelasan
+                    })
+                
+                # Menampilkan Accordion
+                if accordion_data:
+                    ui.accordion(data=accordion_data, key="mrf_accordion")
+            
             # st.markdown("---")
             # st.subheader(f"Hasil Prediksi **{patient_name}**")
-            
+             
             # if survival_rate >= 50:
             #     st.success(f"**SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
             #     st.caption(f"Pasien dikategorikan sebagai **SURVIVOR** karena Survival Rate ≥ 50%")
