@@ -6,6 +6,7 @@ import pandas as pd
 import hmac
 from datetime import datetime
 import os
+import streamlit_shadcn_ui as ui
 
 # === PASSWORD ===
 def check_password():
@@ -63,14 +64,14 @@ if not check_password():
         
 #     updated_df.to_excel(log_file, index=False)
 
-# === data loading ===
-@st.cache_data
-def load_crrt_database():
-    file_path = 'PredictCRRTforKids_Database.xlsx'
-    try:
-        return pd.read_excel(file_path)
-    except:
-        return pd.DataFrame()
+# # === data loading ===
+# @st.cache_data
+# def load_crrt_database():
+#     file_path = 'PredictCRRTforKids_Database.xlsx'
+#     try:
+#         return pd.read_excel(file_path)
+#     except:
+#         return pd.DataFrame()
     
 # === nav side bar ===
 selection = st.sidebar.radio("Pilih Modul Prediksi", ["Peritonitis Prediction", "CRRT Prediction"])
@@ -176,42 +177,112 @@ if selection == "Peritonitis Prediction":
             # Rumus Survival Rate (SR)
             survival_rate = (1 - kejadian_peritonitis) * 100
 
-            st.markdown("---")
-            st.subheader(f"Hasil Prediksi **{patient_name}**")
-            
-            if survival_rate >= 50:
-                st.success(f"**SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
-                st.caption(f"Pasien dikategorikan sebagai **SURVIVOR** karena Survival Rate ≥ 50%")
-            else:
-                st.error(f"**NON-SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
-                st.caption(f"Pasien dikategorikan sebagai **NON-SURVIVOR** karena Survival Rate < 50% (Cut-off dr. Reza Fahlevi, Sp.A(K))")
+            st.divider()
+            st.subheader(f"📊 Laporan Hasil Analisis: {patient_name}")
 
-            # === XAI ===
+            # 1. Menampilkan Survival Rate dengan Metric Card (Shadcn)
+            # Kita tentukan warna berdasarkan hasil
+            result_status = "SURVIVOR" if survival_rate >= 50 else "NON-SURVIVOR"
+            result_color = "default" if survival_rate >= 50 else "destructive"
+
+            cols = st.columns([1, 1])
+            with cols[0]:
+                ui.metric_card(
+                    title="Survival Rate", 
+                    content=f"{survival_rate:.2f}%", 
+                    description=f"Status: {result_status}", 
+                    key="sr_metric"
+                )
+
+            with cols[1]:
+                # Alert Shadcn untuk memberikan kesimpulan cepat
+                if survival_rate >= 50:
+                    ui.alert(
+                        title="Prediksi Positif", 
+                        content=f"Pasien dikategorikan sebagai SURVIVOR berdasarkan cut-off 50%.", 
+                        variant="default", 
+                        icon="check_circle"
+                    )
+                else:
+                    ui.alert(
+                        title="Perhatian Medis", 
+                        content=f"Pasien dikategorikan sebagai NON-SURVIVOR. Diperlukan pengawasan ketat.", 
+                        variant="destructive", 
+                        icon="warning"
+                    )
+
+            # 2. XAI dengan Card dan Badges (Shadcn)
+            st.markdown("### 🔍 Penjelasan Faktor (XAI)")
             expl_col1, expl_col2 = st.columns(2)
-            
-            st.space()
 
             with expl_col1:
-                st.write("**Mendukung Survival (RR < 1)**")
-                for item in xai_supporting_non_peritonitis:
-                    st.write(f"- {item}")
-            
+                with ui.card(title="Faktor Pendukung Survival", description="Variabel dengan Risk Ratio (RR) < 1"):
+                    if xai_supporting_non_peritonitis:
+                        # Menampilkan list menggunakan badges agar terlihat modern
+                        badges = [(item, "outline") for item in xai_supporting_non_peritonitis]
+                        ui.badges(badge_list=badges, class_name="flex flex-wrap gap-2")
+                    else:
+                        st.write("Tidak ada faktor spesifik terdeteksi.")
+
             with expl_col2:
-                st.write("⚠️ **Meningkatkan Risiko Peritonitis (RR > 1)**")
-                for item in xai_supporting_peritonitis:
-                    st.write(f"- {item}")
+                with ui.card(title="Faktor Risiko Peritonitis", description="Variabel dengan Risk Ratio (RR) > 1"):
+                    if xai_supporting_peritonitis:
+                        badges = [(item, "destructive") for item in xai_supporting_peritonitis]
+                        ui.badges(badge_list=badges, class_name="flex flex-wrap gap-2")
+                    else:
+                        st.write("Risiko terpantau rendah.")
 
-            st.space()
-
+            # 3. Modifiable Risk Factor (MRF) dengan Accordion/Card
             if modifiable_risk_factors:
-                st.write("**Modifiable Risk Factor**")
-                st.caption("Variabel berikut dapat diperbaiki secara medis untuk meningkatkan peluang keberhasilan terapi")
+                st.markdown("### 🛠️ Rekomendasi Intervensi (MRF)")
+                ui.alert(
+                    title="Faktor Risiko yang Dapat Dimodifikasi",
+                    content="Berikut adalah langkah medis yang dapat diambil untuk meningkatkan peluang survival.",
+                    variant="outline"
+                )
                 
+                # Loop untuk menampilkan setiap MRF dalam Card kecil yang rapi
                 for mrf in modifiable_risk_factors:
-                    penjelasan = mrf_explanations.get(mrf,"Perlu konsultasi lebih lanjut dengan dokter spesialis.")
+                    penjelasan = mrf_explanations.get(mrf, "Perlu konsultasi lebih lanjut.")
+                    with ui.card(title=f"Rekomendasi: {mrf}"):
+                        st.write(penjelasan)
 
-                    st.write(f"- {mrf}")
-                    st.info(penjelasan)
+            # st.markdown("---")
+            # st.subheader(f"Hasil Prediksi **{patient_name}**")
+            
+            # if survival_rate >= 50:
+            #     st.success(f"**SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
+            #     st.caption(f"Pasien dikategorikan sebagai **SURVIVOR** karena Survival Rate ≥ 50%")
+            # else:
+            #     st.error(f"**NON-SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
+            #     st.caption(f"Pasien dikategorikan sebagai **NON-SURVIVOR** karena Survival Rate < 50% (Cut-off dr. Reza Fahlevi, Sp.A(K))")
+
+            # # === XAI ===
+            # expl_col1, expl_col2 = st.columns(2)
+            
+            # st.space()
+
+            # with expl_col1:
+            #     st.write("**Mendukung Survival (RR < 1)**")
+            #     for item in xai_supporting_non_peritonitis:
+            #         st.write(f"- {item}")
+            
+            # with expl_col2:
+            #     st.write("**Meningkatkan Risiko Peritonitis (RR > 1)**")
+            #     for item in xai_supporting_peritonitis:
+            #         st.write(f"- {item}")
+
+            # st.space()
+
+            # if modifiable_risk_factors:
+            #     st.write("**Modifiable Risk Factor**")
+            #     st.caption("Variabel berikut dapat diperbaiki secara medis untuk meningkatkan peluang keberhasilan terapi")
+                
+            #     for mrf in modifiable_risk_factors:
+            #         penjelasan = mrf_explanations.get(mrf,"Perlu konsultasi lebih lanjut dengan dokter spesialis.")
+
+            #         st.write(f"- {mrf}")
+            #         st.info(penjelasan)
 
     if __name__ == "__main__":
         main()
