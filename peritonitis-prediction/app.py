@@ -7,6 +7,7 @@ import hmac
 from datetime import datetime
 import os
 import streamlit_shadcn_ui as ui
+from streamlit_option_menu import option_menu
 
 # === PASSWORD ===
 def check_password():
@@ -34,7 +35,7 @@ def check_password():
             st.form_submit_button("Login", on_click=password_entered, use_container_width=True)
 
         if "password_correct" in st.session_state:
-            st.error("😕 Username atau password salah.")
+            st.error("Username atau password salah.")
             
     return False
 
@@ -64,17 +65,47 @@ if not check_password():
         
 #     updated_df.to_excel(log_file, index=False)
 
-# # === data loading ===
-# @st.cache_data
-# def load_crrt_database():
-#     file_path = 'PredictCRRTforKids_Database.xlsx'
-#     try:
-#         return pd.read_excel(file_path)
-#     except:
-#         return pd.DataFrame()
+# === data loading ===
+@st.cache_data
+def load_crrt_database():
+    file_path = 'PredictCRRTforKids_Database.xlsx'
+    try:
+        return pd.read_excel(file_path)
+    except:
+        return pd.DataFrame()
+
+# === SIDEBAR NAVIGATION ===
+with st.sidebar:
+    st.title("Menu")
     
-# === nav side bar ===
-selection = st.sidebar.radio("Pilih Modul Prediksi", ["Peritonitis Prediction", "CRRT Prediction"])
+    selection = option_menu(
+        menu_title=None,
+        options=["Peritonitis Prediction", "CRRT Prediction"], 
+        menu_icon="cast", 
+        default_index=0,
+    )
+    
+    developer = "Fadhila Kamila Ismail" if selection == "Peritonitis Prediction" else "Zulfan Zidni Ilhama"
+
+    st.markdown(f"""
+        <div style="line-height: 1.2; font-size: 0.9rem;">
+            <p style="margin-bottom: 0px;">Developed by</p>
+            <p style="margin-top: 0px; margin-bottom: 12px;"><b>{developer}</b></p>        
+            <p style="margin-bottom: 0px;">Supervised by</p>
+            <p style="margin-top: 0px; margin-bottom: 12px;"><b>Retno Aulia Vinarti, M.Kom., Ph.D.</b></p>
+            <p style="margin-bottom: 0px;">Expert</p>
+            <p style="margin-top: 0px; margin-bottom: 0px;"><b>dr. Reza Fahlevi, Sp.A(K)</b></p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.space()
+
+    # === TOMBOL LOGOUT ===
+    if st.button("Log out", use_container_width=True, type="secondary"):
+        # Menghapus status login dari session state
+        st.session_state["password_correct"] = False
+        # Refresh halaman agar kembali ke form login
+        st.rerun()
 
 # === PERITONITIS PREDICTION ===
 if selection == "Peritonitis Prediction":
@@ -117,14 +148,8 @@ if selection == "Peritonitis Prediction":
 
     def main():
         st.title("Prediksi Survival Rate Pasien Pediatri Peritoneal Dialysis")
-
-        with st.sidebar:
-            st.write("Developed by: **Fadhila Kamila Ismail** [LinkedIn](https://www.linkedin.com/in/fadhila-kamila-ismail/)")
-            st.write("Supervised by: **Retno Aulia Vinarti, M.Kom., Ph.D.** [Email](ra_vinarti@its.ac.id)")
-            st.write("Expert: **dr. Reza Fahlevi, Sp.A(K)**")
-            st.info("Sistem ini menggunakan meta-analisis sebagai knowledge-base klinis.")
-
-        st.subheader("Masukkan Kondisi Klinis Pasien")
+        st.markdown("---")
+        st.markdown("#### Masukkan Kondisi Klinis Pasien!")
         patient_name = st.text_input("Nama Pasien", placeholder="Masukkan nama...")
         
         col1, col2 = st.columns(2)
@@ -176,46 +201,33 @@ if selection == "Peritonitis Prediction":
             kejadian_peritonitis = total_wi_xi / total_wi
             # Rumus Survival Rate (SR)
             survival_rate = (1 - kejadian_peritonitis) * 100
-
-            st.divider()
             
-            st.subheader(f"Hasil Prediksi {patient_name}")
+            st.markdown("---")
 
-            # 1. Tentukan warna teks (Hex Code)
+            # 1. Hasil Prediksi
             if survival_rate >= 50:
-                result_status = "SURVIVOR"
-                color_code = "#22c55e" # Hijau
-                status_icon = "🟢"
+                color_code = "#22c55e"
+                status_label = "🟢SURVIVOR"
+                status_text = "≥ 50%"
             else:
-                result_status = "NON-SURVIVOR"
-                color_code = "#f97316" # Oranye
-                status_icon = "🟠"
+                color_code = "#f97316"
+                status_label = "🟠NON-SURVIVOR"
+                status_text = "< 50%"
 
-            cols = st.columns([1, 1])
-
-            with cols[0]:
-                # Kita gunakan HTML untuk memaksa perubahan warna
-                # 'unsafe_allow_html' biasanya tidak tersedia langsung di parameter content, 
-                # jadi kita pakai trik f-string yang lebih berani.
-                colored_content = f"{survival_rate:.2f}%"
-                
-                ui.metric_card(
-                    title="Survival Rate", 
-                    content=colored_content,
-                    description=f"{status_icon} Status: {result_status}", 
-                    key="sr_metric"
-                )
-
-            # 2. Tambahkan indikator warna di bawahnya agar dokter lebih jelas (Alternatif Paling Aman)
-            st.markdown(f"### Persentase Keberhasilan: <span style='color:{color_code}; font-weight:bold;'>{survival_rate:.2f}%</span>", unsafe_allow_html=True)
-
-            st.caption(f"Hasil berdasarkan cut-off 50% sesuai diskusi dengan dr. Reza Fahlevi, Sp.A(K).")
-
+            st.markdown(f"""
+                <div style="line-height: 1.0;">
+                    <h3 style="margin-bottom: 4px; padding-bottom: 0px;">Hasil Prediksi <i>{patient_name}</i></h3>
+                    <h1 style="color: {color_code}; margin-top: 0px; margin-bottom: 4px; padding: 0px; font-weight: bold;">{survival_rate:.2f}%</h1>
+                    <p style="margin-top: 0px; font-size: 0.85rem; color: gray; font-style: italic;">
+                        Pasien dikategorikan sebagai <b>{status_label}</b> karena Survival Rate {status_text}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            
             # 2. XAI dengan Card
             expl_col1, expl_col2 = st.columns(2)
 
             with expl_col1:
-                # Card untuk Faktor Pendukung Survival
                 with ui.card(key="card_survival"):
                     ui.element("span", children=["Faktor Pendukung Survival"], className="text-black text-sm font-bold m-1", key="label_surv")
                     ui.element("p", children=["Variabel dengan Risk Ratio (RR) < 1"], className="text-gray-400 text-xs m-1", key="desc_surv")
@@ -227,9 +239,8 @@ if selection == "Peritonitis Prediction":
                         ui.element("p", children=["Tidak ada faktor spesifik."], className="text-sm text-gray-400 m-1", key="none_surv")
 
             with expl_col2:
-                # Card untuk Faktor Risiko Peritonitis
                 with ui.card(key="card_risk"):
-                    ui.element("span", children=["Faktor Risiko Peritonitis"], className="text-black text-sm font-bold m-1", key="label_risk")
+                    ui.element("span", children=["Faktor Penyebab Peritonitis"], className="text-black text-sm font-bold m-1", key="label_risk")
                     ui.element("p", children=["Variabel dengan Risk Ratio (RR) > 1"], className="text-gray-400 text-xs m-1", key="desc_risk")
                     
                     if xai_supporting_peritonitis:
@@ -238,13 +249,12 @@ if selection == "Peritonitis Prediction":
                     else:
                         ui.element("p", children=["Risiko terpantau rendah."], className="text-sm text-gray-400 m-1", key="none_risk")
 
-            #3. Modifiable Risk Factor (MRF) dengan Accordion (Lebih Rapi & Sesuai Dokumentasi)
+            #3. Modifiable Risk Factor (MRF)
             if modifiable_risk_factors:
-                st.markdown("### Modifiable Risk Factors (MRF)")
-                
+                st.markdown("##### Modifiable Risk Factors (MRF)")
+
                 st.write("Berikut adalah rekomendasi intervensi yang dapat diambil untuk meningkatkan peluang survival")
                 
-                # Menyiapkan data untuk Accordion sesuai format dokumentasi
                 accordion_data = []
                 for mrf in modifiable_risk_factors:
                     penjelasan = mrf_explanations.get(mrf, "Perlu konsultasi lebih lanjut dengan dokter spesialis.")
@@ -253,46 +263,8 @@ if selection == "Peritonitis Prediction":
                         "content": penjelasan
                     })
                 
-                # Menampilkan Accordion
                 if accordion_data:
                     ui.accordion(data=accordion_data, key="mrf_accordion")
-            
-            # st.markdown("---")
-            # st.subheader(f"Hasil Prediksi **{patient_name}**")
-             
-            # if survival_rate >= 50:
-            #     st.success(f"**SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
-            #     st.caption(f"Pasien dikategorikan sebagai **SURVIVOR** karena Survival Rate ≥ 50%")
-            # else:
-            #     st.error(f"**NON-SURVIVOR** dengan Survival Rate **{survival_rate:.2f}%**")
-            #     st.caption(f"Pasien dikategorikan sebagai **NON-SURVIVOR** karena Survival Rate < 50% (Cut-off dr. Reza Fahlevi, Sp.A(K))")
-
-            # # === XAI ===
-            # expl_col1, expl_col2 = st.columns(2)
-            
-            # st.space()
-
-            # with expl_col1:
-            #     st.write("**Mendukung Survival (RR < 1)**")
-            #     for item in xai_supporting_non_peritonitis:
-            #         st.write(f"- {item}")
-            
-            # with expl_col2:
-            #     st.write("**Meningkatkan Risiko Peritonitis (RR > 1)**")
-            #     for item in xai_supporting_peritonitis:
-            #         st.write(f"- {item}")
-
-            # st.space()
-
-            # if modifiable_risk_factors:
-            #     st.write("**Modifiable Risk Factor**")
-            #     st.caption("Variabel berikut dapat diperbaiki secara medis untuk meningkatkan peluang keberhasilan terapi")
-                
-            #     for mrf in modifiable_risk_factors:
-            #         penjelasan = mrf_explanations.get(mrf,"Perlu konsultasi lebih lanjut dengan dokter spesialis.")
-
-            #         st.write(f"- {mrf}")
-            #         st.info(penjelasan)
 
     if __name__ == "__main__":
         main()
@@ -300,11 +272,6 @@ if selection == "Peritonitis Prediction":
 elif selection == "CRRT Prediction":
     st.title("Survival Prediction Calculator for Pediatric CRRT")
 
-    with st.sidebar:
-        st.write("Developed by: **Zulfan Zidni Ilhama** [LinkedIn](https://www.linkedin.com/in/zulfanzidni/)")
-        st.write("Supervised by: **Retno Aulia Vinarti, M.Kom., Ph.D.** [Email](ra_vinarti@its.ac.id)")
-        st.write("Expert: **dr. Reza Fahlevi, Sp.A(K)**")
-    
     df_crrt = load_crrt_database()
 
     patient_name = st.text_input("Patient Name")
