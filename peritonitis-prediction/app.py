@@ -4,10 +4,69 @@ TA | Peritonitis Prediction Calculator
 import streamlit as st
 import pandas as pd
 import hmac
+import hashlib
 from datetime import datetime
 import os
 import streamlit_shadcn_ui as ui
 from streamlit_option_menu import option_menu
+
+# === CACHE (data loading) ===
+@st.cache_data
+def load_data(modul):
+    file_path_peritonitis = 'PeritonitisPrediction_Database.xlsx' 
+    file_path_crrt = 'PredictCRRTforKids_Database.xlsx'
+    
+    target_file = file_path_peritonitis if modul == "Peritonitis Prediction" else file_path_crrt
+    
+    try:
+        df = pd.read_excel(target_file)
+        return df
+    except FileNotFoundError:
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat membaca data: {e}")
+        return pd.DataFrame()
+
+def save_prediction(user_inputs, prediction_score, outcome, module_name):
+    
+    file_path = 'PeritonitisPrediction_Database.xlsx'
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # ANONIMISASI Nama Pasien
+    raw_name = user_inputs.get("Nama Pasien", "Unknown")
+    # ID unik = hash nama + waktu
+    patient_id = hashlib.sha256(raw_name.encode()).hexdigest()[:8].upper()
+    
+    # 3. MENYIAPKAN DATA BARU
+    # Mulai dengan kolom dasar
+    new_data = {
+        "Timestamp": timestamp,
+        "Patient_ID": patient_id,
+        "Module": module_name
+    }
+    
+    # Otomatis mengisi kolom berdasarkan dictionary variables_data
+    # user_inputs adalah dictionary yang berisi { "label": "pilihan_user" }
+    for label, value in user_inputs.items():
+        if label != "Nama Pasien": # nama asli tidak disimpan ke excel
+            new_data[label] = value
+            
+    # Tambahkan hasil prediksi
+    new_data["Prediction_Score"] = f"{prediction_score:.2f}%"
+    new_data["Outcome"] = outcome
+    
+    # 4. PROSES SIMPAN KE EXCEL (DATABASE LOKAL)
+    new_df = pd.DataFrame([new_data])
+    
+    if os.path.exists(file_path):
+        existing_df = pd.read_excel(file_path)
+        updated_df = pd.concat([existing_df, new_df], ignore_index=True)
+    else:
+        updated_df = new_df
+        
+    updated_df.to_excel(file_path, index=False)
+    return patient_id # Mengembalikan ID untuk ditampilkan ke user
 
 # === PASSWORD ===
 def check_password():
@@ -24,7 +83,7 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
-    st.markdown("<h1 style='text-align: center;'>Sistem Prediksi Pediatri</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>Pediatric Prediction System</h1>", unsafe_allow_html=True)
     left_co, cent_co, last_co = st.columns([1, 2, 1])
     
     with cent_co:
@@ -49,30 +108,6 @@ st.set_page_config(
 if not check_password():
     st.stop()
 
-# # === simpan log ke excel ===
-# def save_prediction_log(data_row, module_name):
-#     log_file = "prediction_logs.xlsx"
-#     data_row['Module'] = module_name
-#     data_row['Timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-#     new_df = pd.DataFrame([data_row])
-    
-#     if os.path.exists(log_file):
-#         existing_df = pd.read_excel(log_file)
-#         updated_df = pd.concat([existing_df, new_df], ignore_index=True)
-#     else:
-#         updated_df = new_df
-        
-#     updated_df.to_excel(log_file, index=False)
-
-# === data loading ===
-@st.cache_data
-def load_crrt_database():
-    file_path = 'PredictCRRTforKids_Database.xlsx'
-    try:
-        return pd.read_excel(file_path)
-    except:
-        return pd.DataFrame()
 
 # === SIDEBAR NAVIGATION ===
 with st.sidebar:
@@ -100,7 +135,7 @@ with st.sidebar:
     
     st.space()
 
-    # === TOMBOL LOGOUT ===
+    # LOGOUT
     if st.button("Log out", use_container_width=True, type="secondary"):
         # Menghapus status login dari session state
         st.session_state["password_correct"] = False
@@ -168,6 +203,8 @@ if selection == "Peritonitis Prediction":
                 st.warning("Silakan masukkan nama pasien terlebih dahulu.")
                 return
 
+            user_selections["Nama Pasien"] = patient_name
+
             total_wi_xi = 0
             total_wi = 0
             
@@ -209,10 +246,17 @@ if selection == "Peritonitis Prediction":
                 color_code = "#22c55e"
                 status_label = "🟢SURVIVOR"
                 status_text = "≥ 50%"
+                outcome = "Survivor"
             else:
                 color_code = "#f97316"
                 status_label = "🟠NON-SURVIVOR"
                 status_text = "< 50%"
+                outcome = "Non-Survivor"
+
+            id_anonim = save_prediction(user_selections, survival_rate, outcome, "Peritonitis")
+            
+            st.success(f"Prediksi Berhasil Disimpan! ID Pasien: {id_anonim}")
+            st.info("Sesuai protokol etik, nama pasien telah di-anonimkan dalam database.")
 
             st.markdown(f"""
                 <div style="line-height: 1.0;">
@@ -272,7 +316,7 @@ if selection == "Peritonitis Prediction":
 elif selection == "CRRT Prediction":
     st.title("Survival Prediction Calculator for Pediatric CRRT")
 
-    df_crrt = load_crrt_database()
+    # df_crrt = load_crrt_database()
 
     patient_name = st.text_input("Patient Name")
     patient_id = st.text_input("Patient ID")
@@ -320,16 +364,12 @@ elif selection == "CRRT Prediction":
         "hyperammonemia": ["Yes", "No"]
     }
 
-    # Mark significant variables
     significant_variables = ["age", "weight", "prism_score", "vis", "ventilator", "crrt", "fo", "fo_at_crrt", "ph", "sepsis", "alf", "rsd", "albumin", "kreatinin", "pelod", "psofa", "sodium"]
 
-    # Variables that are correct if higher or same than upper limits
     higher_or_equal_variables = ["ph", "platelet", "urine_v", "albumin", "bicarbonate", "potassium"]
 
-    # Split view into two columns
     col1, col2 = st.columns(2)
 
-    # Input fields for user data
     user_data = {}
     with col1:
         for i, (var, props) in enumerate(variables.items()):
